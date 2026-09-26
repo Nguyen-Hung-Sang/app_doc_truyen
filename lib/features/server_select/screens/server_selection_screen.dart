@@ -135,11 +135,109 @@ class _ServerSelectionScreenState extends State<ServerSelectionScreen> {
       return;
     }
 
-    // Chuyển sang MangaHomeScreen và truyền MangaSource kèm Role
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) =>
             MangaHomeScreen(source: _selectedSource!, userRole: _userRole),
+      ),
+    );
+  }
+
+  // DIALOG CHO ADMIN CHỈNH SỬA LINK WEB KHI SẬP HOẶC ĐỔI TÊN MIỀN
+  void _showEditUrlDialog(MangaSource source) {
+    final urlController = TextEditingController(text: source.baseUrl);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.edit_rounded, color: Color(0xFF2563EB)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Sửa Link [${source.name}]',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nhập URL mới khi trang web bị sập hoặc đổi tên miền:',
+              style: TextStyle(fontSize: 13, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              decoration: InputDecoration(
+                labelText: 'Link URL mới',
+                hintText: 'https://example.com',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                prefixIcon: const Icon(Icons.language),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final newUrl = urlController.text.trim();
+              if (newUrl.isEmpty) return;
+
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Đang cập nhật link mới lên Firebase...'),
+                ),
+              );
+
+              bool success =
+                  await MangaSourceManager.updateSourceUrlInFirestore(
+                    source.id,
+                    newUrl,
+                  );
+
+              if (!mounted) return;
+
+              if (success) {
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cập nhật Link Web thành công!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Lỗi cập nhật link. Vui lòng kiểm tra lại!'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Lưu Link'),
+          ),
+        ],
       ),
     );
   }
@@ -344,6 +442,8 @@ class _ServerSelectionScreenState extends State<ServerSelectionScreen> {
   }
 
   Widget _buildSourceCard(MangaSource source, bool isSelected) {
+    final bool isAdmin = _userRole.toLowerCase() == 'admin';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -419,13 +519,30 @@ class _ServerSelectionScreenState extends State<ServerSelectionScreen> {
             ),
           ],
         ),
-        trailing: Text(
-          _getStatusLabel(source.status),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: _getStatusColor(source.status),
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _getStatusLabel(source.status),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: _getStatusColor(source.status),
+              ),
+            ),
+            if (isAdmin) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(
+                  Icons.edit_rounded,
+                  color: Color(0xFF2563EB),
+                  size: 22,
+                ),
+                tooltip: 'Sửa Link Web (Admin)',
+                onPressed: () => _showEditUrlDialog(source),
+              ),
+            ],
+          ],
         ),
       ),
     );
